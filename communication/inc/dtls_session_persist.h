@@ -21,7 +21,7 @@
 #include "stddef.h"
 
 // The size of the persisted data
-#define SessionPersistBaseSize 216
+#define SessionPersistBaseSize 224
 
 // variable size due to int/size_t members
 #define SessionPersistVariableSize (sizeof(int)+sizeof(int)+sizeof(size_t))
@@ -84,7 +84,7 @@ struct __attribute__((packed)) SessionPersistData
 	uint8_t opaque_ssl[64+SessionPersistVariableSize+32+48+2+8+2];
 #endif
 
-   /**
+	/**
 	 * Checksum of the state of the subscriptions that have been sent to the cloud.
 	 */
 	uint32_t subscriptions_crc;
@@ -93,17 +93,21 @@ struct __attribute__((packed)) SessionPersistData
 	 */
 	uint32_t describe_app_crc;
 	/**
-	  * Checksum of the system describe message.
-	  */
+	 * Checksum of the system describe message.
+	 */
 	uint32_t describe_system_crc;
 	/**
-	  * Protocol flags.
-	  */
+	 * Protocol flags.
+	 */
 	uint32_t protocol_flags;
 	/**
-	  * Application state flags (see the `AppStateDescriptor::StateFlag` enum).
-	  */
+	 * Application state flags (see the `AppStateDescriptor::StateFlag` enum).
+	 */
 	uint32_t app_state_flags;
+	/**
+	 * Connection ID.
+	 */
+	uint8_t cid[8];
 };
 
 class __attribute__((packed)) SessionPersistOpaque : public SessionPersistData
