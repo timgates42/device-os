@@ -84,7 +84,7 @@ std::recursive_mutex mdm_mutex;
 #define CGDCONT_TIMEOUT   ( 10 * 1000)
 #define CIMI_TIMEOUT      ( 10 * 1000) /* Should be immediate, but have observed 3 seconds occassionally on u-blox and rarely longer times */
 #define CMGS_TIMEOUT      (150 * 1000) /* 180s for R4 (set to 150s to match previous implementation) */
-#define COPS_TIMEOUT      (180 * 1000)
+#define COPS_TIMEOUT      (300 * 1000)
 #define CPWROFF_TIMEOUT   ( 40 * 1000)
 #define CSQ_TIMEOUT       ( 10 * 1000)
 #define CREG_TIMEOUT      ( 60 * 1000)
@@ -99,6 +99,7 @@ std::recursive_mutex mdm_mutex;
 #define UPSDA_TIMEOUT     (180 * 1000)
 #define UPSND_TIMEOUT     ( 10 * 1000)
 #define URAT_TIMEOUT      ( 10 * 1000)
+#define NW_DBG_TIMEOUT    ( 30 * 1000)
 
 // num sockets
 #define NUMSOCKETS      ((int)(sizeof(_sockets)/sizeof(*_sockets)))
@@ -1548,6 +1549,111 @@ int MDMParser::_cbURAT(int type, const char *buf, int len, bool *matched_default
     return WAIT;
 }
 
+int MDMParser::network_debug() {
+    // Check the networks around. For issues where devices connect to unauthorized operators,
+    // we want to know if there was a network outage with "good" operators
+    sendFormated("AT+COPS=?\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, COPS_TIMEOUT)) {
+        return -1;
+    }
+
+    // Selects one PLMN selector with Access Technology list in the SIM card
+    // or active application in the UICC
+    sendFormated("AT+CPLS?\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    // General info about PS operator selection
+    // Similar to COPS, but for PS
+    sendFormated("AT+UCGOPS?\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    // One time dump of cell environment description
+    // Contains info about serving and neighbor cells, their signal measurement reporting,
+    // and few more
+    sendFormated("AT+CGED=0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    // Info about cell tower once it's connected
+    sendFormated("AT+UCELLINFO?\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    // Reading SIM EF files
+    MDM_INFO("Forbidden PLMNs");
+    sendFormated("AT+CRSM=176,28539,0,0,0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    MDM_INFO("User controlled PLMN selector with Access Technolog");
+    sendFormated("AT+CRSM=176,28512,0,0,0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    MDM_INFO("Higher Priority PLMN search period");
+    sendFormated("AT+CRSM=176,28465,0,0,0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    MDM_INFO("Co-operative Network List");
+    sendFormated("AT+CRSM=176,28466,0,0,0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    MDM_INFO("Operator controlled PLMN selector with Access Technology");
+    sendFormated("AT+CRSM=176,28513,0,0,0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    MDM_INFO("HPLMN selector with Access Technology");
+    sendFormated("AT+CRSM=176,28514,0,0,0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    MDM_INFO("Operator PLMN List");
+    sendFormated("AT+CRSM=176,28614,0,0,0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    MDM_INFO("Equivalent HPLMN");
+    sendFormated("AT+CRSM=176,28633,0,0,0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    MDM_INFO("Equivalent HPLMN Presentation Indication");
+    sendFormated("AT+CRSM=176,28635,0,0,0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    MDM_INFO("Last RPLMN Selection Indication");
+    sendFormated("AT+CRSM=176,28636,0,0,0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
+    MDM_INFO("SoLSA LSA List");
+    sendFormated("AT+CRSM=176,20273,0,0,0\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+    return 0;
+}
+
 bool MDMParser::registerNet(const char* apn, NetStatus* status, system_tick_t timeout_ms)
 {
     LOCK();
@@ -1679,7 +1785,12 @@ bool MDMParser::registerNet(const char* apn, NetStatus* status, system_tick_t ti
                 }
             }
 
-            // Now check every 15 seconds for 10 minutes to see if we're connected to the tower (GSM, GPRS and LTE)
+            // Run network debug information atleast once
+            if (network_debug() < 0) {
+                goto failure;
+            }
+
+            // Now check every 30 seconds for 10 minutes to see if we're connected to the tower (GSM, GPRS and LTE)
             system_tick_t start = HAL_Timer_Get_Milli_Seconds();
             system_tick_t start_imsi_check = start;
             while (!(ok = checkNetStatus(status)) && !TIMEOUT(start, timeout_ms) && !_cancel_all_operations) {
@@ -1690,6 +1801,10 @@ bool MDMParser::registerNet(const char* apn, NetStatus* status, system_tick_t ti
                     if ((REG_OK(_net.csd) && REG_OK(_net.psd)) || REG_OK(_net.eps)) {
                         break; // force another checkNetStatus() call
                     }
+                }
+                // Run network debug information
+                if (network_debug() < 0) {
+                    goto failure;
                 }
                 // Query IMSI every 60 sec if not regsitered, to detect IMSI switches
                 if (HAL_Timer_Get_Milli_Seconds() - start_imsi_check > 60000UL) {
