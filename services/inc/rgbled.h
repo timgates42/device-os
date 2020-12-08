@@ -25,38 +25,32 @@ typedef struct {
 
 #define DEFAULT_LED_RGB_BRIGHTNESS (96)
 
+typedef uint32_t Led_TypeDef;
+
 #define LED_MIRROR_OFFSET          (4)
 
-typedef enum
-{
-    LED1           = 0,
-    LED2           = 1,
-    LED3           = 2,
-    LED4           = 3,
-    LED3_LED4_LED2 = 231,
-    LED1_MIRROR    = LED1 + LED_MIRROR_OFFSET,
-    LED2_MIRROR    = LED2 + LED_MIRROR_OFFSET,
-    LED3_MIRROR    = LED3 + LED_MIRROR_OFFSET,
-    LED4_MIRROR    = LED4 + LED_MIRROR_OFFSET
-} Led_TypeDef;
-
+#define PARTICLE_LED1               (0)
+#define PARTICLE_LED2               (1)
+#define PARTICLE_LED3               (2)
+#define PARTICLE_LED4               (3)
+#define PARTICLE_LED3_LED4_LED2     (231)
+#define PARTICLE_LED1_MIRROR        (PARTICLE_LED1 + LED_MIRROR_OFFSET)
+#define PARTICLE_LED2_MIRROR        (PARTICLE_LED2 + LED_MIRROR_OFFSET)
+#define PARTICLE_LED3_MIRROR        (PARTICLE_LED3 + LED_MIRROR_OFFSET)
+#define PARTICLE_LED4_MIRROR        (PARTICLE_LED4 + LED_MIRROR_OFFSET)
 
 //Extended LED Types
-#define LED_RGB           LED3_LED4_LED2
-#define LED_USER          LED1
+#define LED_RGB           (PARTICLE_LED3_LED4_LED2)
+#define LED_USER          (PARTICLE_LED1)
 
-// FIXME: These should be pulled from platform_config.h
+
+// FIXME: These duplicate what's in platform_config.h, which is excluded by SPARK_NO_PLATFORM
 #ifndef LED_RED
-#define LED_RED           LED3
+#define LED_RED           PARTICLE_LED3
+#define LED_GREEN         PARTICLE_LED4
+#define LED_BLUE          PARTICLE_LED2
 #endif
 
-#ifndef LED_GREEN
-#define LED_GREEN         LED4
-#endif
-
-#ifndef LED_BLUE
-#define LED_BLUE          LED2
-#endif
 
 //RGB Basic Colors
 #define RGB_COLOR_RED     0xFF0000
