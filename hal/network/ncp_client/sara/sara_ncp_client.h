@@ -139,6 +139,7 @@ private:
     void resetRegistrationState();
     void checkRegistrationState();
     int interveneRegistration();
+    int networkDebug();
     int checkRunningImsi();
     int processEventsImpl();
     int getIccidImpl(char* buf, size_t size);

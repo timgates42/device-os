@@ -1557,6 +1557,12 @@ int MDMParser::network_debug() {
         return -1;
     }
 
+    // SIM stat for REFRESH commands
+    sendFormated("AT+USIMSTAT=3\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+
     // Selects one PLMN selector with Access Technology list in the SIM card
     // or active application in the UICC
     sendFormated("AT+CPLS?\r\n");
@@ -1567,7 +1573,7 @@ int MDMParser::network_debug() {
     // General info about PS operator selection
     // Similar to COPS, but for PS
     sendFormated("AT+UCGOPS?\r\n");
-    if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+    if (WAIT == waitFinalResp(nullptr, nullptr, COPS_TIMEOUT)) {
         return -1;
     }
 
@@ -1649,6 +1655,15 @@ int MDMParser::network_debug() {
     MDM_INFO("SoLSA LSA List");
     sendFormated("AT+CRSM=176,20273,0,0,0\r\n");
     if (WAIT == waitFinalResp(nullptr, nullptr, NW_DBG_TIMEOUT)) {
+        return -1;
+    }
+    // Any general erros
+    sendFormated("AT+CEER\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, CEER_TIMEOUT)) {
+        return -1;
+    }
+    sendFormated("AT+UCEER\r\n");
+    if (WAIT == waitFinalResp(nullptr, nullptr, CEER_TIMEOUT)) {
         return -1;
     }
     return 0;
@@ -1786,6 +1801,7 @@ bool MDMParser::registerNet(const char* apn, NetStatus* status, system_tick_t ti
             }
 
             // Run network debug information atleast once
+            // FIXME: Add support for R410. For now, this will not break R410s, but will give a bunch of errors
             if (network_debug() < 0) {
                 goto failure;
             }
@@ -1802,7 +1818,9 @@ bool MDMParser::registerNet(const char* apn, NetStatus* status, system_tick_t ti
                         break; // force another checkNetStatus() call
                     }
                 }
+
                 // Run network debug information
+                // FIXME: Add support for R410. For now, this will not break R410s, but will give a bunch of errors
                 if (network_debug() < 0) {
                     goto failure;
                 }

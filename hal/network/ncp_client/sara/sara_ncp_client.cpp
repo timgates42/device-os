@@ -121,6 +121,8 @@ const system_tick_t UBLOX_COPS_TIMEOUT = 5 * 60 * 1000;
 const system_tick_t UBLOX_CFUN_TIMEOUT = 3 * 60 * 1000;
 const system_tick_t UBLOX_CIMI_TIMEOUT = 10 * 1000; // Should be immediate, but have observed 3 seconds occassionally on u-blox and rarely longer times
 const system_tick_t UBLOX_UBANDMASK_TIMEOUT = 10 * 1000;
+const system_tick_t NW_DBG_TIMEOUT = 30 * 1000;
+const system_tick_t UBLOX_CEER_TIMEOUT = 10 * 1000;
 
 const auto UBLOX_MUXER_T1 = 2530;
 const auto UBLOX_MUXER_T2 = 2540;
@@ -1593,6 +1595,7 @@ int SaraNcpClient::registerNet() {
     }
 
     if (conf_.ncpIdentifier() != PLATFORM_NCP_SARA_R410) {
+        networkDebug();
         r = CHECK_PARSER(parser_.execCommand("AT+CREG?"));
         CHECK_TRUE(r == AtResponse::OK, SYSTEM_ERROR_AT_NOT_OK);
         r = CHECK_PARSER(parser_.execCommand("AT+CGREG?"));
@@ -1833,6 +1836,71 @@ void SaraNcpClient::checkRegistrationState() {
     }
 }
 
+int SaraNcpClient::networkDebug() {
+    // Check the networks around. For issues where devices connect to unauthorized operators,
+    // we want to know if there was a network outage with "good" operators
+    CHECK_PARSER(parser_.execCommand(UBLOX_COPS_TIMEOUT, "AT+COPS=?"));
+
+    // SIM stat for REFRESH commands
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+USIMSTAT=3"));
+
+    // Selects one PLMN selector with Access Technology list in the SIM card
+    // or active application in the UICC
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CPLS?"));
+
+    // General info about PS operator selection
+    // Similar to COPS, but for PS
+    CHECK_PARSER(parser_.execCommand(UBLOX_COPS_TIMEOUT, "AT+UCGOPS?"));
+
+    // One time dump of cell environment description
+    // Contains info about serving and neighbor cells, their signal measurement reporting,
+    // and few more
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CGED=0"));
+
+    // Info about cell tower once it's connected
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+UCELLINFO?"));
+
+    // Reading SIM EF files
+    LOG(TRACE, "Forbidden PLMNs");
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CRSM=176,28539,0,0,0"));
+
+    LOG(TRACE, "User controlled PLMN selector with Access Technolog");
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CRSM=176,28512,0,0,0"));
+
+    LOG(TRACE, "Higher Priority PLMN search period");
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CRSM=176,28465,0,0,0"));
+
+    LOG(TRACE, "Co-operative Network List");
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CRSM=176,28466,0,0,0"));
+
+    LOG(TRACE, "Operator controlled PLMN selector with Access Technology");
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CRSM=176,28513,0,0,0"));
+
+    LOG(TRACE, "HPLMN selector with Access Technology");
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CRSM=176,28514,0,0,0"));
+
+    LOG(TRACE, "Operator PLMN List");
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CRSM=176,28614,0,0,0"));
+
+    LOG(TRACE, "Equivalent HPLMN");
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CRSM=176,28633,0,0,0"));
+
+    LOG(TRACE, "Equivalent HPLMN Presentation Indication");
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CRSM=176,28635,0,0,0"));
+
+    LOG(TRACE, "Last RPLMN Selection Indication");
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CRSM=176,28636,0,0,0"));
+
+    LOG(TRACE, "SoLSA LSA List");
+    CHECK_PARSER(parser_.execCommand(NW_DBG_TIMEOUT, "AT+CRSM=176,20273,0,0,0"));
+
+    // Any general erros
+    CHECK_PARSER(parser_.execCommand(UBLOX_CEER_TIMEOUT, "AT+CEER"));
+    CHECK_PARSER(parser_.execCommand(UBLOX_CEER_TIMEOUT, "AT+UCEER"));
+
+    return 0;
+}
+
 int SaraNcpClient::interveneRegistration() {
     CHECK_TRUE(connState_ == NcpConnectionState::CONNECTING, SYSTEM_ERROR_NONE);
 
@@ -1932,6 +2000,8 @@ int SaraNcpClient::processEventsImpl() {
         // Do not need to check for an OK, as this is just for debugging purpose
         CHECK_PARSER(parser_.execCommand("AT+CSQ"));
     } else {
+        // Collect network debug information
+        networkDebug();
         CHECK_PARSER_OK(parser_.execCommand("AT+CEREG?"));
         // Check the signal seen by the module while trying to register
         // Do not need to check for an OK, as this is just for debugging purpose,
