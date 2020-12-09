@@ -1993,6 +1993,8 @@ int SaraNcpClient::processEventsImpl() {
     });
 
     if (conf_.ncpIdentifier() != PLATFORM_NCP_SARA_R410) {
+        // Collect network debug information
+        networkDebug();
         CHECK_PARSER(parser_.execCommand("AT+CEER"));
         CHECK_PARSER_OK(parser_.execCommand("AT+CREG?"));
         CHECK_PARSER_OK(parser_.execCommand("AT+CGREG?"));
@@ -2000,8 +2002,6 @@ int SaraNcpClient::processEventsImpl() {
         // Do not need to check for an OK, as this is just for debugging purpose
         CHECK_PARSER(parser_.execCommand("AT+CSQ"));
     } else {
-        // Collect network debug information
-        networkDebug();
         CHECK_PARSER_OK(parser_.execCommand("AT+CEREG?"));
         // Check the signal seen by the module while trying to register
         // Do not need to check for an OK, as this is just for debugging purpose,
